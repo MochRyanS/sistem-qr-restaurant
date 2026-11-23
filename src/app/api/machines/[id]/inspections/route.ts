@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/lib/db";
+import { Timestamp } from "firebase-admin/firestore";
+import { firestore } from "@/lib/firebase";
 import { serializeInspection } from "@/lib/serialize";
 import type { InspectionInput, ChecklistResult, ChecklistSnapshotItem } from "@/lib/types";
 
@@ -11,20 +12,20 @@ type Params = { params: Promise<{ id: string }> };
 export async function GET(_req: NextRequest, { params }: Params) {
     const { id } = await params;
 
-    const machine = await db.machine.findUnique({ where: { id } });
-    if (!machine) {
+    const machineDoc = await firestore.collection("machines").doc(id).get();
+    if (!machineDoc.exists) {
         return NextResponse.json(
             { error: "Mesin tidak ditemukan." },
             { status: 404 },
         );
     }
 
-    const rows = await db.inspectionLog.findMany({
-        where: { machineId: id },
-        orderBy: { date: "desc" },
-    });
-
-    const inspections = rows.map(serializeInspection);
+    const snapshot = await firestore
+        .collection("inspectionLogs")
+        .where("machineId", "==", id)
+        .orderBy("date", "desc")
+        .get();
+    const inspections = snapshot.docs.map(serializeInspection);
     return NextResponse.json({ inspections });
 }
 
@@ -32,13 +33,15 @@ export async function GET(_req: NextRequest, { params }: Params) {
 export async function POST(req: NextRequest, { params }: Params) {
     const { id } = await params;
 
-    const machine = await db.machine.findUnique({ where: { id } });
-    if (!machine) {
+    const machineDoc = await firestore.collection("machines").doc(id).get();
+    if (!machineDoc.exists) {
         return NextResponse.json(
             { error: "Mesin tidak ditemukan." },
             { status: 404 },
         );
     }
+    const machineData = machineDoc.data()!;
+    const currentStatus = (machineData.status as string) ?? "Normal";
 
     let body: InspectionInput;
     try {
@@ -59,12 +62,13 @@ export async function POST(req: NextRequest, { params }: Params) {
         );
     }
 
-    // Ambil item checklist aktif dari DB untuk validasi & snapshot
-    const dbItems = await db.checklistItem.findMany({
-        orderBy: [{ order: "asc" }, { createdAt: "asc" }],
-    });
+    // Ambil item checklist aktif dari Firestore untuk validasi & snapshot
+    const itemsSnap = await firestore
+        .collection("checklistItems")
+        .orderBy("order", "asc")
+        .get();
 
-    if (dbItems.length === 0) {
+    if (itemsSnap.empty) {
         return NextResponse.json(
             { error: "Belum ada item checklist terdaftar. Tambahkan item via admin terlebih dahulu." },
             { status: 400 },
@@ -72,17 +76,23 @@ export async function POST(req: NextRequest, { params }: Params) {
     }
 
     // Bangun keySet item aktif & snapshot
-    const activeKeys = new Set(dbItems.map((i: { key: any; }) => i.key));
-    const snapshot: ChecklistSnapshotItem[] = dbItems.map((i: { key: any; label: any; }) => ({
-        key: i.key,
-        label: i.label,
-    }));
+    const activeKeys = new Set<string>();
+    const snapshot: ChecklistSnapshotItem[] = [];
+    itemsSnap.docs.forEach((d) => {
+        const data = d.data();
+        const key = (data.key as string) ?? "";
+        const label = (data.label as string) ?? "";
+        if (key) {
+            activeKeys.add(key);
+            snapshot.push({ key, label });
+        }
+    });
 
     // Validasi & sanitasi checklistResults terhadap item aktif
     const cleanResults: Record<string, ChecklistResult> = {};
     if (checklistResults && typeof checklistResults === "object") {
         for (const [key, value] of Object.entries(checklistResults)) {
-            if (activeKeys.has(key) && VALID_RESULTS.hase as ChecklistResult)) {
+            if (activeKeys.has(key) && VALID_RESULTS.has(value as ChecklistResult)) {
                 cleanResults[key] = value as ChecklistResult;
             }
         }
@@ -95,31 +105,31 @@ export async function POST(req: NextRequest, { params }: Params) {
         );
     }
 
-    const row = await db.inspectionLog.create({
-        data: {
-            machineId: id,
-            technicianName: technicianName.trim(),
-            checklistResults: JSON.stringify(cleanResults),
-            checklistSnapshot: JSON.stringify(snapshot),
-            notes: (notes ?? "").trim(),
-            date: new Date(),
-        },
+    const now = Timestamp.now();
+
+    const docRef = await firestore.collection("inspectionLogs").add({
+        machineId: id,
+        technicianName: technicianName.trim(),
+        checklistResults: cleanResults,
+        checklistSnapshot: snapshot,
+        notes: (notes ?? "").trim(),
+        date: now,
+        createdAt: now,
     });
 
-    // Update status mesin secara otomatis berdasarkan hasil inspeksi:
-    // - Jika ada item "Tidak Standar" → status mesin = "Perbaikan"
-    // - Selain itu → "Normal"
+    // Update status mesin secara otomatis berdasarkan hasil inspeksi
     const hasNonStandard = Object.values(cleanResults).includes("Tidak Standar");
     const newStatus = hasNonStandard ? "Perbaikan" : "Normal";
 
-    if (newStatus !== machine.status) {
-        await db.machine.update({
-            where: { id },
-            data: { status: newStatus },
+    if (newStatus !== currentStatus) {
+        await firestore.collection("machines").doc(id).update({
+            status: newStatus,
+            updatedAt: Timestamp.now(),
         });
     }
 
-    const inspection = serializeInspection(row);
+    const doc = await docRef.get();
+    const inspection = serializeInspection(doc);
     return NextResponse.json(
         { inspection, machineStatus: newStatus },
         { status: 201 },

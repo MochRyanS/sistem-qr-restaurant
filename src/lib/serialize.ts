@@ -7,105 +7,100 @@ import type {
     ChecklistSnapshotItem,
 } from "@/lib/types";
 
-/**
- * Helper serialisasi dari record Prisma (yang menyimpan specs & checklistResults
- * sebagai JSON string) menjadi tipe domain yang dikonsumsi frontend.
- */
-export function serializeMachine(row: {
+/** Tipe structur untuk Firestore document (kompatibel semua versi firebase-admin). */
+interface FirestoreDoc {
     id: string;
-    code: string;
-    name: string;
-    location: string;
-    specs: string;
-    imageUrl: string;
-    status: string;
-    createdAt: Date;
-    updatedAt: Date;
-}): Machine {
+    exists: boolean;
+    data: () => Record<string, unknown> | undefined;
+}
+
+/** Konversi nilai tanggal Firestore/Date/string ke ISO string. */
+function toISO(value: unknown): string {
+    if (!value) return new Date().toISOString();
+    if (value instanceof Date) return value.toISOString();
+    if (typeof value === "string") return value;
+    if (typeof value === "object" && value !== null && "toDate" in value) {
+        const toDate = (value as { toDate: () => Date }).toDate;
+        return toDate.call(value).toISOString();
+    }
+    return new Date().toISOString();
+}
+
+/** Serialisasi Firestore doc → tipe domain Machine. */
+export function serializeMachine(doc: FirestoreDoc): Machine {
+    const data = doc.data() ?? {};
+
     let specs: MachineSpec[] = [];
-    try {
-        const parsed = JSON.parse(row.specs);
-        if (Array.isArray(parsed)) {
-            specs = parsed.filter(
-                (s) => s && typeof s.key === "string" && typeof s.value === "string",
-            );
-        }
-    } catch {
-        specs = [];
+    if (Array.isArray(data.specs)) {
+        specs = (data.specs as unknown[])
+            .filter(
+                (s) =>
+                    s && typeof s === "object" &&
+                    typeof (s as Record<string, unknown>).key === "string" &&
+                    typeof (s as Record<string, unknown>).value === "string",
+            ) as MachineSpec[];
     }
 
     return {
-        id: row.id,
-        code: row.code,
-        name: row.name,
-        location: row.location,
+        id: doc.id,
+        code: (data.code as string) ?? "",
+        name: (data.name as string) ?? "",
+        location: (data.location as string) ?? "",
         specs,
-        imageUrl: row.imageUrl,
-        status: (row.status as Machine["status"]) ?? "Normal",
-        createdAt: row.createdAt.toISOString(),
-        updatedAt: row.updatedAt.toISOString(),
+        imageUrl: (data.imageUrl as string) ?? "",
+        status: (data.status as Machine["status"]) ?? "Normal",
+        createdAt: toISO(data.createdAt),
+        updatedAt: toISO(data.updatedAt),
     };
 }
 
-export function serializeInspection(row: {
-    id: string;
-    machineId: string;
-    date: Date;
-    technicianName: string;
-    checklistResults: string;
-    checklistSnapshot: string;
-    notes: string;
-    createdAt: Date;
-}): InspectionLog {
+/** Serialisasi Firestore doc → tipe domain InspectionLog. */
+export function serializeInspection(doc: FirestoreDoc): InspectionLog {
+    const data = doc.data() ?? {};
+
     let checklistResults: ChecklistResults = {};
-    try {
-        const parsed = JSON.parse(row.checklistResults);
-        if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
-            checklistResults = parsed as ChecklistResults;
-        }
-    } catch {
-        checklistResults = {};
+    if (
+        data.checklistResults &&
+        typeof data.checklistResults === "object" &&
+        !Array.isArray(data.checklistResults)
+    ) {
+        checklistResults = data.checklistResults as ChecklistResults;
     }
 
     let checklistSnapshot: ChecklistSnapshotItem[] = [];
-    try {
-        const parsed = JSON.parse(row.checklistSnapshot);
-        if (Array.isArray(parsed)) {
-            checklistSnapshot = parsed.filter(
-                (s) => s && typeof s.key === "string" && typeof s.label === "string",
-            );
-        }
-    } catch {
-        checklistSnapshot = [];
+    if (Array.isArray(data.checklistSnapshot)) {
+        checklistSnapshot = (data.checklistSnapshot as unknown[])
+            .filter(
+                (s) =>
+                    s && typeof s === "object" &&
+                    typeof (s as Record<string, unknown>).key === "string" &&
+                    typeof (s as Record<string, unknown>).label === "string",
+            ) as ChecklistSnapshotItem[];
     }
 
     return {
-        id: row.id,
-        machineId: row.machineId,
-        date: row.date.toISOString(),
-        technicianName: row.technicianName,
+        id: doc.id,
+        machineId: (data.machineId as string) ?? "",
+        date: toISO(data.date),
+        technicianName: (data.technicianName as string) ?? "",
         checklistResults,
         checklistSnapshot,
-        notes: row.notes,
-        createdAt: row.createdAt.toISOString(),
+        notes: (data.notes as string) ?? "",
+        createdAt: toISO(data.createdAt),
     };
 }
 
-export function serializeChecklistItem(row: {
-    id: string;
-    key: string;
-    label: string;
-    order: number;
-    createdAt: Date;
-    updatedAt: Date;
-}): ChecklistItem {
+/** Serialisasi Firestore doc → tipe domain ChecklistItem. */
+export function serializeChecklistItem(doc: FirestoreDoc): ChecklistItem {
+    const data = doc.data() ?? {};
+
     return {
-        id: row.id,
-        key: row.key,
-        label: row.label,
-        order: row.order,
-        createdAt: row.createdAt.toISOString(),
-        updatedAt: row.updatedAt.toISOString(),
+        id: doc.id,
+        key: (data.key as string) ?? "",
+        label: (data.label as string) ?? "",
+        order: (data.order as number) ?? 0,
+        createdAt: toISO(data.createdAt),
+        updatedAt: toISO(data.updatedAt),
     };
 }
 
