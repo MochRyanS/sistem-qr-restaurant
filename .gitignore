@@ -1,0 +1,10 @@
+node_modules/
+.next/
+.env.local
+.env
+*.log
+dev.db
+
+# Firebase service account (JANGAN commit!)
+*-firebase-adminsdk*.json
+*.firebase-adminsdk*.json

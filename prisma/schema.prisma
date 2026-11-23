@@ -1,0 +1,60 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+/// Status mesin: Normal | Perbaikan | Rusak
+model Machine {
+  id        String   @id @default(cuid())
+  code      String   @unique // Nomor/Kode Aset Unik
+  name      String
+  location  String
+  specs     String   @default("[]") // JSON string dari array {key, value}
+  imageUrl  String   @default("")
+  status    String   @default("Normal") // Normal | Perbaikan | Rusak
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  inspections InspectionLog[]
+
+  @@index([status])
+}
+
+/// Item checklist inspeksi yang dapat dikustomisasi (global).
+/// Di-seed dari "FORM CHECKLIST EQUIPMENT SAFARI BENTO" dan dapat
+/// ditambah/edit/hapus oleh admin.
+model ChecklistItem {
+  id        String   @id @default(cuid())
+  key       String   @unique // slug stabil, immutable (dipakai sebagai key di checklistResults)
+  label     String             // nama tampilan, dapat diedit
+  order     Int      @default(0) // urutan tampil
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+/// Log inspeksi mingguan per mesin
+model InspectionLog {
+  id               String   @id @default(cuid())
+  machineId        String
+  date             DateTime @default(now())
+  technicianName   String
+  checklistResults String   @default("{}") // JSON { itemKey: "Standar"|"Tidak Standar" }
+  checklistSnapshot String  @default("[]") // JSON [{key,label}] snapshot item saat inspeksi
+  notes            String   @default("")
+  createdAt        DateTime @default(now())
+
+  machine Machine @relation(fields: [machineId], references: [id], onDelete: Cascade)
+
+  @@index([machineId])
+  @@index([date])
+}
