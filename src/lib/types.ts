@@ -79,8 +79,9 @@ export interface InspectionLog {
 /** Payload untuk membuat inspeksi baru */
 export interface InspectionInput {
     technicianName: string;
-    checklistResults: ChecklistResults;
     notes: string;
+    /** Optional: tanggal inspeksi (default: now) */
+    date?: string;
 }
 
 /** Pilihan hasil checklist untuk radio/tombol */

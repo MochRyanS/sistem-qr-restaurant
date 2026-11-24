@@ -16,8 +16,8 @@ import { StatusBadge } from "@/components/shared/StatusBadge";
 import { MachineSpecs } from "@/components/public/MachineSpecs";
 import { InspectionForm } from "@/components/public/InspectionForm";
 import { InspectionHistory } from "@/components/public/InspectionHistory";
-import { fetchMachine, fetchInspections, fetchChecklistItems } from "@/lib/api-client";
-import type { Machine, InspectionLog, ChecklistItem } from "@/lib/types";
+import { fetchMachine, fetchInspections } from "@/lib/api-client";
+import type { Machine, InspectionLog } from "@/lib/types";
 
 interface PublicMachineViewProps {
     machineId: string;
@@ -27,7 +27,6 @@ interface PublicMachineViewProps {
 export function PublicMachineView({ machineId, onBack }: PublicMachineViewProps) {
     const [machine, setMachine] = useState<Machine | null>(null);
     const [inspections, setInspections] = useState<InspectionLog[]>([]);
-    const [checklistItems, setChecklistItems] = useState<ChecklistItem[]>([]);
     const [loadingMachine, setLoadingMachine] = useState(true);
     const [loadingInspections, setLoadingInspections] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -59,30 +58,13 @@ export function PublicMachineView({ machineId, onBack }: PublicMachineViewProps)
         }
     }, [machineId]);
 
-    const loadChecklistItems = useCallback(async () => {
-        try {
-            const data = await fetchChecklistItems();
-            setChecklistItems(data);
-        } catch {
-            // Checklist gagal dimuat — form akan tampilkan pesan kosong
-        }
-    }, []);
-
     useEffect(() => {
-        const loadAll = async () => {
-            await Promise.all([
-                loadMachine(),
-                loadInspections(),
-                loadChecklistItems(),
-            ]);
-        };
+        void loadMachine();
+        void loadInspections();
+    }, [loadMachine, loadInspections]);
 
-        void loadAll();
-    }, [loadMachine, loadInspections, loadChecklistItems]);
-
-    const handleInspectionSubmitted = async () => {
-        // Muat ulang data mesin (status mungkin berubah) & riwayat
-        await loadMachine();
+    const handleInspectionSubmitted = () => {
+        void loadMachine();
         void loadInspections();
     };
 
@@ -185,11 +167,10 @@ export function PublicMachineView({ machineId, onBack }: PublicMachineViewProps)
                 <section className="space-y-2">
                     <div className="flex items-center gap-2">
                         <ClipboardCheck className="h-4 w-4 text-amber-500" />
-                        <h2 className="text-base font-semibold">Inspeksi Mingguan</h2>
+                        <h2 className="text-base font-semibold">Laporan Inspeksi</h2>
                     </div>
                     <InspectionForm
                         machineId={machine.id}
-                        items={checklistItems}
                         onSubmitted={handleInspectionSubmitted}
                     />
                 </section>
@@ -228,7 +209,7 @@ function PublicHeader({ onBack }: { onBack: () => void }) {
                             Inspeksi Mesin
                         </p>
                         <p className="text-[10px] text-muted-foreground">
-                            Form Pengecekan Mingguan
+                            Form Laporan
                         </p>
                     </div>
                 </div>

@@ -4,7 +4,7 @@ import { firestore } from "@/lib/firebase";
 import { serializeMachine } from "@/lib/serialize";
 import type { MachineInput, MachineStatus, MachineSpec } from "@/lib/types";
 
-const VALID_STATUS: MachineStatus[] = ["Normal", "Perbaikan", "Rusak"];
+const VALID_STATUS: Set<MachineStatus> = new Set(["Normal", "Perbaikan", "Rusak"]);
 
 export async function GET() {
     const snapshot = await firestore.collection("machines").orderBy("createdAt", "desc").get();
@@ -28,7 +28,7 @@ export async function POST(req: NextRequest) {
     const cleanSpecs: MachineSpec[] = Array.isArray(specs)
         ? specs.filter((s) => s?.key?.trim()).map((s) => ({ key: s.key.trim(), value: (s.value ?? "").trim() }))
         : [];
-    const finalStatus = VALID_STATUS.includes(status) ? status : "Normal";
+    const finalStatus = VALID_STATUS.has(status) ? status : "Normal";
     const now = Timestamp.now();
 
     const docRef = await firestore.collection("machines").add({
