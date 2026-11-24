@@ -1,7 +1,7 @@
 "use client";
 
-import { SetStateAction, useEffect, useState } from "react";
-import { Plus, Trash2, Loader2 } from "lucide-react";
+import { useEffect, useState, useRef } from "react";
+import { Plus, Trash2, Loader2, Upload, X } from "lucide-react";
 import {
     Dialog,
     DialogContent,
@@ -28,7 +28,6 @@ import type { Machine, MachineInput, MachineSpec, MachineStatus } from "@/lib/ty
 interface MachineFormModalProps {
     open: boolean;
     onOpenChange: (open: boolean) => void;
-    /** Mesin yang sedang diedit (null = mode tambah) */
     editingMachine?: Machine | null;
     onSaved: (machine: Machine) => void;
 }
@@ -39,6 +38,41 @@ const STATUS_OPTIONS: { value: MachineStatus; label: string }[] = [
     { value: "Rusak", label: "Rusak" },
 ];
 
+async function compressImage(file: File, maxSize = 800, quality = 0.7): Promise<string> {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            const img = new Image();
+            img.onload = () => {
+                let { width, height } = img;
+                if (width > maxSize || height > maxSize) {
+                    if (width > height) {
+                        height = Math.round((height * maxSize) / width);
+                        width = maxSize;
+                    } else {
+                        width = Math.round((width * maxSize) / height);
+                        height = maxSize;
+                    }
+                }
+                const canvas = document.createElement("canvas");
+                canvas.width = width;
+                canvas.height = height;
+                const ctx = canvas.getContext("2d");
+                if (!ctx) {
+                    reject(new Error("Canvas tidak didukung."));
+                    return;
+                }
+                ctx.drawImage(img, 0, 0, width, height);
+                resolve(canvas.toDataURL("image/jpeg", quality));
+            };
+            img.onerror = () => reject(new Error("Gagal memuat gambar."));
+            img.src = e.target?.result as string;
+        };
+        reader.onerror = () => reject(new Error("Gagal membaca file."));
+        reader.readAsDataURL(file);
+    });
+}
+
 export function MachineFormModal({
     open,
     onOpenChange,
@@ -47,23 +81,24 @@ export function MachineFormModal({
 }: MachineFormModalProps) {
     const { toast } = useToast();
     const isEdit = Boolean(editingMachine);
+    const fileInputRef = useRef<HTMLInputElement>(null);
 
     const [submitting, setSubmitting] = useState(false);
     const [code, setCode] = useState("");
     const [name, setName] = useState("");
     const [location, setLocation] = useState("");
-    const [imageUrl, setImageUrl] = useState("");
+    const [imageData, setImageData] = useState("");
     const [status, setStatus] = useState<MachineStatus>("Normal");
     const [specs, setSpecs] = useState<MachineSpec[]>([{ key: "", value: "" }]);
+    const [uploading, setUploading] = useState(false);
 
-    // Reset form setiap kali modal dibuka / mesin berubah
     useEffect(() => {
         if (!open) return;
         if (editingMachine) {
             setCode(editingMachine.code);
             setName(editingMachine.name);
             setLocation(editingMachine.location);
-            setImageUrl(editingMachine.imageUrl);
+            setImageData(editingMachine.imageUrl);
             setStatus(editingMachine.status);
             setSpecs(
                 editingMachine.specs.length > 0
@@ -74,18 +109,64 @@ export function MachineFormModal({
             setCode("");
             setName("");
             setLocation("");
-            setImageUrl("");
+            setImageData("");
             setStatus("Normal");
             setSpecs([{ key: "", value: "" }]);
         }
     }, [open, editingMachine]);
 
-    const addSpec = () =>
-        setSpecs((prev) => [...prev, { key: "", value: "" }]);
+    const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
 
+        if (!file.type.startsWith("image/")) {
+            toast({
+                title: "File tidak valid",
+                description: "Pilih file gambar (JPG, PNG, WebP).",
+                variant: "destructive",
+            });
+            return;
+        }
+
+        if (file.size > 10 * 1024 * 1024) {
+            toast({
+                title: "File terlalu besar",
+                description: "Ukuran maksimal 10MB.",
+                variant: "destructive",
+            });
+            return;
+        }
+
+        setUploading(true);
+        try {
+            const compressed = await compressImage(file);
+            setImageData(compressed);
+            toast({
+                title: "Foto terunggah",
+                description: "Gambar dikompres dan siap disimpan.",
+            });
+        } catch (err) {
+            toast({
+                title: "Gagal upload",
+                description:
+                    err instanceof Error ? err.message : "Terjadi kesalahan.",
+                variant: "destructive",
+            });
+        } finally {
+            setUploading(false);
+        }
+    };
+
+    const handleRemoveImage = () => {
+        setImageData("");
+        if (fileInputRef.current) {
+            fileInputRef.current.value = "";
+        }
+    };
+
+    const addSpec = () => setSpecs((prev) => [...prev, { key: "", value: "" }]);
     const removeSpec = (index: number) =>
         setSpecs((prev) => prev.filter((_, i) => i !== index));
-
     const updateSpec = (index: number, field: keyof MachineSpec, value: string) =>
         setSpecs((prev) =>
             prev.map((s, i) => (i === index ? { ...s, [field]: value } : s)),
@@ -94,7 +175,6 @@ export function MachineFormModal({
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
 
-        // Validasi sederhana
         if (!code.trim() || !name.trim() || !location.trim()) {
             toast({
                 title: "Validasi gagal",
@@ -108,7 +188,7 @@ export function MachineFormModal({
             code: code.trim(),
             name: name.trim(),
             location: location.trim(),
-            imageUrl: imageUrl.trim(),
+            imageUrl: imageData,
             status,
             specs: specs
                 .filter((s) => s.key.trim())
@@ -166,7 +246,7 @@ export function MachineFormModal({
                                 id="code"
                                 placeholder="cth: MCH-PRD-001"
                                 value={code}
-                                onChange={(e: { target: { value: SetStateAction<string>; }; }) => setCode(e.target.value)}
+                                onChange={(e) => setCode(e.target.value)}
                                 required
                             />
                         </div>
@@ -178,7 +258,7 @@ export function MachineFormModal({
                                 id="name"
                                 placeholder="cth: Mesin CNC Milling VMC-500"
                                 value={name}
-                                onChange={(e: { target: { value: SetStateAction<string>; }; }) => setName(e.target.value)}
+                                onChange={(e) => setName(e.target.value)}
                                 required
                             />
                         </div>
@@ -193,7 +273,7 @@ export function MachineFormModal({
                                 id="location"
                                 placeholder="cth: Ruang Produksi A"
                                 value={location}
-                                onChange={(e: { target: { value: SetStateAction<string>; }; }) => setLocation(e.target.value)}
+                                onChange={(e) => setLocation(e.target.value)}
                                 required
                             />
                         </div>
@@ -201,7 +281,7 @@ export function MachineFormModal({
                             <Label htmlFor="status">Status Mesin</Label>
                             <Select
                                 value={status}
-                                onValueChange={(v: any) => setStatus(v as MachineStatus)}
+                                onValueChange={(v) => setStatus(v as MachineStatus)}
                             >
                                 <SelectTrigger id="status">
                                     <SelectValue />
@@ -217,17 +297,55 @@ export function MachineFormModal({
                         </div>
                     </div>
 
+                    {/* Upload foto — INI BAGIAN YANG BERUBAH */}
                     <div className="space-y-2">
-                        <Label htmlFor="imageUrl">URL Foto Mesin</Label>
-                        <Input
-                            id="imageUrl"
-                            placeholder="https://..."
-                            value={imageUrl}
-                            onChange={(e: { target: { value: SetStateAction<string>; }; }) => setImageUrl(e.target.value)}
+                        <Label>Foto Mesin</Label>
+                        <input
+                            ref={fileInputRef}
+                            type="file"
+                            accept="image/*"
+                            onChange={handleFileSelect}
+                            className="hidden"
+                            id="photo-upload"
                         />
-                        {imageUrl.trim() && (
+                        {imageData ? (
+                            <div className="relative overflow-hidden rounded-lg border">
+                                <img
+                                    src={imageData}
+                                    alt="Pratinjau"
+                                    className="h-48 w-full object-cover"
+                                />
+                                <button
+                                    type="button"
+                                    onClick={handleRemoveImage}
+                                    className="absolute right-2 top-2 rounded-full bg-black/60 p-1.5 text-white hover:bg-black/80"
+                                >
+                                    <X className="h-4 w-4" />
+                                </button>
+                            </div>
+                        ) : (
+                            <label
+                                htmlFor="photo-upload"
+                                className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border border-dashed py-8 hover:border-amber-400 hover:bg-muted/50"
+                            >
+                                {uploading ? (
+                                    <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                                ) : (
+                                    <>
+                                        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted">
+                                            <Upload className="h-5 w-5 text-muted-foreground" />
+                                        </div>
+                                        <p className="text-sm font-medium">Klik untuk upload foto</p>
+                                        <p className="text-xs text-muted-foreground">
+                                            JPG, PNG, WebP — maks 10MB
+                                        </p>
+                                    </>
+                                )}
+                            </label>
+                        )}
+                        {!imageData && (
                             <p className="text-xs text-muted-foreground">
-                                Pratinjau foto akan tampil di kartu QR & halaman inspeksi.
+                                Foto akan tampil di kartu QR & halaman inspeksi.
                             </p>
                         )}
                     </div>
@@ -259,13 +377,13 @@ export function MachineFormModal({
                                     <Input
                                         placeholder="Atribut (cth: Daya)"
                                         value={spec.key}
-                                        onChange={(e: { target: { value: string; }; }) => updateSpec(index, "key", e.target.value)}
+                                        onChange={(e) => updateSpec(index, "key", e.target.value)}
                                         className="flex-1"
                                     />
                                     <Input
                                         placeholder="Nilai (cth: 15 kW)"
                                         value={spec.value}
-                                        onChange={(e: { target: { value: string; }; }) => updateSpec(index, "value", e.target.value)}
+                                        onChange={(e) => updateSpec(index, "value", e.target.value)}
                                         className="flex-1"
                                     />
                                     <Button
