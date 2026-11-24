@@ -10,8 +10,7 @@ function initFirebase() {
 
     if (!projectId || !clientEmail || !privateKey) {
         throw new Error(
-            "Firebase credentials tidak lengkap. Set FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, " +
-            "dan FIREBASE_PRIVATE_KEY di environment variables.",
+            "Firebase credentials tidak lengkap. Set FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, dan FIREBASE_PRIVATE_KEY di environment variables.",
         );
     }
 

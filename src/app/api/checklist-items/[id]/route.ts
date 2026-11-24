@@ -1,60 +1,34 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/lib/db";
+import { Timestamp } from "firebase-admin/firestore";
+import { firestore } from "@/lib/firebase";
 import { serializeChecklistItem } from "@/lib/serialize";
 import type { ChecklistItemInput } from "@/lib/types";
 
 type Params = { params: Promise<{ id: string }> };
 
-/** PUT /api/checklist-items/[id] — update label item (key tetap stabil) */
 export async function PUT(req: NextRequest, { params }: Params) {
     const { id } = await params;
-
-    const existing = await db.checklistItem.findUnique({ where: { id } });
-    if (!existing) {
-        return NextResponse.json(
-            { error: "Item checklist tidak ditemukan." },
-            { status: 404 },
-        );
-    }
+    const docRef = firestore.collection("checklistItems").doc(id);
+    const existing = await docRef.get();
+    if (!existing.exists) return NextResponse.json({ error: "Item tidak ditemukan." }, { status: 404 });
 
     let body: ChecklistItemInput;
-    try {
-        body = await req.json();
-    } catch {
-        return NextResponse.json(
-            { error: "Body request tidak valid (bukan JSON)." },
-            { status: 400 },
-        );
+    try { body = await req.json(); } catch {
+        return NextResponse.json({ error: "Body tidak valid." }, { status: 400 });
     }
-
     const { label } = body;
-    if (!label || !label.trim()) {
-        return NextResponse.json(
-            { error: "Nama item checklist wajib diisi." },
-            { status: 400 },
-        );
-    }
+    if (!label?.trim()) return NextResponse.json({ error: "Nama item wajib diisi." }, { status: 400 });
 
-    const row = await db.checklistItem.update({
-        where: { id },
-        data: { label: label.trim() },
-    });
-
-    return NextResponse.json({ item: serializeChecklistItem(row) });
+    await docRef.update({ label: label.trim(), updatedAt: Timestamp.now() });
+    const doc = await docRef.get();
+    return NextResponse.json({ item: serializeChecklistItem(doc) });
 }
 
-/** DELETE /api/checklist-items/[id] — hapus item checklist */
 export async function DELETE(_req: NextRequest, { params }: Params) {
     const { id } = await params;
-
-    const existing = await db.checklistItem.findUnique({ where: { id } });
-    if (!existing) {
-        return NextResponse.json(
-            { error: "Item checklist tidak ditemukan." },
-            { status: 404 },
-        );
-    }
-
-    await db.checklistItem.delete({ where: { id } });
+    const docRef = firestore.collection("checklistItems").doc(id);
+    const existing = await docRef.get();
+    if (!existing.exists) return NextResponse.json({ error: "Item tidak ditemukan." }, { status: 404 });
+    await docRef.delete();
     return NextResponse.json({ success: true });
 }

@@ -1,64 +1,42 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/lib/db";
+import { Timestamp } from "firebase-admin/firestore";
+import { firestore } from "@/lib/firebase";
 import { serializeChecklistItem } from "@/lib/serialize";
 import { slugifyKey, type ChecklistItemInput } from "@/lib/types";
 
-/** GET /api/checklist-items — daftar semua item checklist (urut) */
 export async function GET() {
-    const rows = await db.checklistItem.findMany({
-        orderBy: [{ order: "asc" }, { createdAt: "asc" }],
-    });
-    const items = rows.map(serializeChecklistItem);
+    const snapshot = await firestore.collection("checklistItems").orderBy("order", "asc").get();
+    const items = snapshot.docs.map(serializeChecklistItem);
     return NextResponse.json({ items });
 }
 
-/** POST /api/checklist-items — tambah item checklist baru */
 export async function POST(req: NextRequest) {
     let body: ChecklistItemInput;
-    try {
-        body = await req.json();
-    } catch {
-        return NextResponse.json(
-            { error: "Body request tidak valid (bukan JSON)." },
-            { status: 400 },
-        );
+    try { body = await req.json(); } catch {
+        return NextResponse.json({ error: "Body tidak valid." }, { status: 400 });
     }
-
     const { label } = body;
-    if (!label || !label.trim()) {
-        return NextResponse.json(
-            { error: "Nama item checklist wajib diisi." },
-            { status: 400 },
-        );
-    }
+    if (!label?.trim()) return NextResponse.json({ error: "Nama item wajib diisi." }, { status: 400 });
 
     const cleanLabel = label.trim();
-
-    // Generate key stabil dari label; pastikan unik
     let baseKey = slugifyKey(cleanLabel);
     if (!baseKey) baseKey = "item";
     let key = baseKey;
     let suffix = 1;
-    // Cari key yang belum dipakai
-    while (await db.checklistItem.findUnique({ where: { key } })) {
+    while (true) {
+        const dupSnap = await firestore.collection("checklistItems").where("key", "==", key).limit(1).get();
+        if (dupSnap.empty) break;
         key = `${baseKey}-${suffix}`;
         suffix++;
     }
 
-    // order = max(existing order) + 1
-    const maxOrderRow = await db.checklistItem.findFirst({
-        orderBy: { order: "desc" },
-        select: { order: true },
-    });
-    const nextOrder = (maxOrderRow?.order ?? 0) + 1;
+    const orderSnap = await firestore.collection("checklistItems").orderBy("order", "desc").limit(1).get();
+    const nextOrder = orderSnap.empty ? 1 : ((orderSnap.docs[0].data().order as number) ?? 0) + 1;
 
-    const row = await db.checklistItem.create({
-        data: {
-            key,
-            label: cleanLabel,
-            order: nextOrder,
-        },
+    const now = Timestamp.now();
+    const docRef = await firestore.collection("checklistItems").add({
+        key, label: cleanLabel, order: nextOrder, createdAt: now, updatedAt: now,
     });
-
-    return NextResponse.json({ item: serializeChecklistItem(row) }, { status: 201 });
+    const doc = await docRef.get();
+    return NextResponse.json({ item: serializeChecklistItem(doc) }, { status: 201 });
 }
