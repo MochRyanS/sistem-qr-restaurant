@@ -109,6 +109,7 @@ export function MachineList({
                                     <TableHead>Kode Aset</TableHead>
                                     <TableHead>Lokasi</TableHead>
                                     <TableHead>Status</TableHead>
+                                    <TableHead>Preventive</TableHead>
                                     <TableHead className="whitespace-nowrap">Diperbarui</TableHead>
                                     <TableHead className="text-right">Aksi</TableHead>
                                 </TableRow>
@@ -179,6 +180,14 @@ export function MachineList({
                                                 </Button>
                                             </div>
                                         </TableCell>
+                                        <TableCell>
+                                            <span className={`inline-flex items-center gap-1 text-xs font-medium ${m.preventiveDone ? "text-emerald-600" : "text-amber-600"}`}>
+                                                {m.preventiveDone ? "Sudah" : "Belum"}
+                                            </span>
+                                            {m.preventiveDone && m.preventiveTechnician && (
+                                                <span className="block text-[10px] text-muted-foreground">{m.preventiveTechnician}</span>
+                                            )}
+                                        </TableCell>
                                     </TableRow>
                                 ))}
                             </TableBody>
@@ -246,6 +255,12 @@ export function MachineList({
                                     >
                                         <Trash2 className="h-4 w-4" />
                                     </Button>
+                                </div>
+                                <div className="mt-2 flex items-center gap-2">
+                                    <StatusBadge status={m.status} />
+                                    <span className={`text-xs font-medium ${m.preventiveDone ? "text-emerald-600" : "text-amber-600"}`}>
+                                        {m.preventiveDone ? "Preventive: Sudah" : "Preventive: Belum"}
+                                    </span>
                                 </div>
                             </div>
                         ))}
