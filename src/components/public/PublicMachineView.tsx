@@ -2,22 +2,14 @@
 
 import { useCallback, useEffect, useState } from "react";
 import {
-    ArrowLeft,
-    MapPin,
-    Loader2,
-    ImageOff,
-    Factory,
-    ClipboardCheck,
-    AlertCircle,
+    ArrowLeft, MapPin, Loader2, ImageOff, AlertCircle,
+    ShieldCheck, ShieldX, FileText, ClipboardCheck,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { StatusBadge } from "@/components/shared/StatusBadge";
-import { MachineSpecs } from "@/components/public/MachineSpecs";
-import { InspectionForm } from "@/components/public/InspectionForm";
-import { InspectionHistory } from "@/components/public/InspectionHistory";
-import { fetchMachine, fetchInspections } from "@/lib/api-client";
-import type { Machine, InspectionLog } from "@/lib/types";
+import { fetchMachine } from "@/lib/api-client";
+import type { Machine } from "@/lib/types";
 
 interface PublicMachineViewProps {
     machineId: string;
@@ -26,9 +18,7 @@ interface PublicMachineViewProps {
 
 export function PublicMachineView({ machineId, onBack }: PublicMachineViewProps) {
     const [machine, setMachine] = useState<Machine | null>(null);
-    const [inspections, setInspections] = useState<InspectionLog[]>([]);
     const [loadingMachine, setLoadingMachine] = useState(true);
-    const [loadingInspections, setLoadingInspections] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
     const loadMachine = useCallback(async () => {
@@ -38,37 +28,14 @@ export function PublicMachineView({ machineId, onBack }: PublicMachineViewProps)
             const data = await fetchMachine(machineId);
             setMachine(data);
         } catch (err) {
-            setError(
-                err instanceof Error ? err.message : "Mesin tidak dapat dimuat.",
-            );
+            setError(err instanceof Error ? err.message : "Mesin tidak dapat dimuat.");
         } finally {
             setLoadingMachine(false);
         }
     }, [machineId]);
 
-    const loadInspections = useCallback(async () => {
-        setLoadingInspections(true);
-        try {
-            const data = await fetchInspections(machineId);
-            setInspections(data);
-        } catch {
-            // Riwayat gagal dimuat tidak fatal
-        } finally {
-            setLoadingInspections(false);
-        }
-    }, [machineId]);
+    useEffect(() => { void loadMachine(); }, [loadMachine]);
 
-    useEffect(() => {
-        void loadMachine();
-        void loadInspections();
-    }, [loadMachine, loadInspections]);
-
-    const handleInspectionSubmitted = () => {
-        void loadMachine();
-        void loadInspections();
-    };
-
-    // Loading awal
     if (loadingMachine) {
         return (
             <div className="flex min-h-screen flex-col bg-zinc-50 dark:bg-zinc-950">
@@ -80,7 +47,6 @@ export function PublicMachineView({ machineId, onBack }: PublicMachineViewProps)
         );
     }
 
-    // Error / mesin tidak ditemukan
     if (error || !machine) {
         return (
             <div className="flex min-h-screen flex-col bg-zinc-50 dark:bg-zinc-950">
@@ -89,13 +55,10 @@ export function PublicMachineView({ machineId, onBack }: PublicMachineViewProps)
                     <AlertCircle className="h-12 w-12 text-red-400" />
                     <div>
                         <p className="text-base font-semibold">Mesin tidak ditemukan</p>
-                        <p className="mt-1 text-sm text-muted-foreground">
-                            {error ?? "QR Code mungkin tidak valid atau mesin sudah dihapus."}
-                        </p>
+                        <p className="mt-1 text-sm text-muted-foreground">{error ?? "QR Code mungkin tidak valid atau mesin sudah dihapus."}</p>
                     </div>
                     <Button variant="outline" onClick={onBack}>
-                        <ArrowLeft className="mr-2 h-4 w-4" />
-                        Kembali ke Dashboard
+                        <ArrowLeft className="mr-2 h-4 w-4" />Kembali ke Dashboard
                     </Button>
                 </div>
                 <PublicFooter />
@@ -106,82 +69,74 @@ export function PublicMachineView({ machineId, onBack }: PublicMachineViewProps)
     return (
         <div className="flex min-h-screen flex-col bg-zinc-50 dark:bg-zinc-950">
             <PublicHeader onBack={onBack} />
-
             <main className="mx-auto w-full max-w-md flex-1 space-y-4 px-4 py-4">
                 {/* Kartu identitas mesin */}
                 <Card className="overflow-hidden">
-                    {/* Foto mesin */}
                     <div className="relative aspect-video w-full bg-muted">
                         {machine.imageUrl ? (
-                            <img
-                                src={machine.imageUrl}
-                                alt={machine.name}
-                                className="h-full w-full object-cover"
-                                onError={(e) => {
-                                    (e.target as HTMLImageElement).style.display = "none";
-                                }}
-                            />
+                            <img src={machine.imageUrl} alt={machine.name} className="h-full w-full object-cover"
+                                onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
                         ) : (
                             <div className="flex h-full w-full flex-col items-center justify-center gap-1 text-muted-foreground">
                                 <ImageOff className="h-8 w-8" />
                                 <span className="text-xs">Foto tidak tersedia</span>
                             </div>
                         )}
-                        {/* Overlay status */}
                         <div className="absolute right-2 top-2">
                             <StatusBadge status={machine.status} className="shadow-sm" />
                         </div>
                     </div>
-
                     <CardContent className="space-y-3 p-4">
                         <div>
-                            <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-                                Kode Aset
-                            </p>
-                            <p className="font-mono text-sm font-bold text-amber-600">
-                                {machine.code}
-                            </p>
+                            <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Kode Aset</p>
+                            <p className="font-mono text-sm font-bold text-amber-600">{machine.code}</p>
                         </div>
                         <div>
-                            <h1 className="text-lg font-bold leading-tight text-zinc-900 dark:text-zinc-50">
-                                {machine.name}
-                            </h1>
+                            <h1 className="text-lg font-bold leading-tight text-zinc-900 dark:text-zinc-50">{machine.name}</h1>
                         </div>
                         <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
-                            <MapPin className="h-4 w-4 text-amber-500" />
-                            {machine.location}
+                            <MapPin className="h-4 w-4 text-amber-500" />{machine.location}
                         </div>
                     </CardContent>
                 </Card>
 
-                {/* Spesifikasi teknis */}
-                <section className="space-y-2">
-                    <div className="flex items-center gap-2">
-                        <Factory className="h-4 w-4 text-amber-500" />
-                        <h2 className="text-base font-semibold">Spesifikasi Teknis</h2>
-                    </div>
-                    <MachineSpecs specs={machine.specs} />
-                </section>
+                {/* Deskripsi mesin */}
+                {machine.description && (
+                    <Card>
+                        <CardContent className="p-4">
+                            <div className="mb-2 flex items-center gap-2">
+                                <FileText className="h-4 w-4 text-amber-500" />
+                                <h2 className="text-sm font-semibold">Deskripsi Mesin</h2>
+                            </div>
+                            <p className="text-sm leading-relaxed text-foreground">{machine.description}</p>
+                        </CardContent>
+                    </Card>
+                )}
 
-                {/* Form inspeksi */}
-                <section className="space-y-2">
-                    <div className="flex items-center gap-2">
-                        <ClipboardCheck className="h-4 w-4 text-amber-500" />
-                        <h2 className="text-base font-semibold">Laporan Inspeksi</h2>
-                    </div>
-                    <InspectionForm
-                        machineId={machine.id}
-                        onSubmitted={handleInspectionSubmitted}
-                    />
-                </section>
-
-                {/* Riwayat inspeksi */}
-                <InspectionHistory
-                    inspections={inspections}
-                    loading={loadingInspections}
-                />
+                {/* Status Preventive Maintenance */}
+                <Card>
+                    <CardContent className="p-4">
+                        <div className="mb-2 flex items-center gap-2">
+                            <ClipboardCheck className="h-4 w-4 text-amber-500" />
+                            <h2 className="text-sm font-semibold">Preventive Maintenance</h2>
+                        </div>
+                        <div className={`flex items-center gap-3 rounded-lg p-3 ${machine.preventiveDone ? "bg-emerald-50 dark:bg-emerald-950/30" : "bg-amber-50 dark:bg-amber-950/30"
+                            }`}>
+                            {machine.preventiveDone ? (
+                                <ShieldCheck className="h-8 w-8 shrink-0 text-emerald-500" />
+                            ) : (
+                                <ShieldX className="h-8 w-8 shrink-0 text-amber-500" />
+                            )}
+                            <div>
+                                <p className="text-sm font-bold">{machine.preventiveDone ? "Sudah Preventive" : "Belum Preventive"}</p>
+                                <p className="text-xs text-muted-foreground">
+                                    {machine.preventiveDone ? "Maintenance preventive telah dilakukan" : "Maintenance preventive belum dilakukan"}
+                                </p>
+                            </div>
+                        </div>
+                    </CardContent>
+                </Card>
             </main>
-
             <PublicFooter />
         </div>
     );
@@ -191,13 +146,7 @@ function PublicHeader({ onBack }: { onBack: () => void }) {
     return (
         <header className="sticky top-0 z-30 border-b border-zinc-200 bg-white/90 backdrop-blur dark:border-zinc-800 dark:bg-zinc-900/90">
             <div className="mx-auto flex max-w-md items-center gap-2 px-4 py-3">
-                <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={onBack}
-                    className="-ml-2 px-2"
-                    aria-label="Kembali"
-                >
+                <Button variant="ghost" size="sm" onClick={onBack} className="-ml-2 px-2" aria-label="Kembali">
                     <ArrowLeft className="h-4 w-4" />
                 </Button>
                 <div className="flex items-center gap-2">
@@ -205,12 +154,8 @@ function PublicHeader({ onBack }: { onBack: () => void }) {
                         <ClipboardCheck className="h-4 w-4" />
                     </div>
                     <div>
-                        <p className="text-sm font-semibold leading-tight">
-                            Inspeksi Mesin
-                        </p>
-                        <p className="text-[10px] text-muted-foreground">
-                            Form Laporan
-                        </p>
+                        <p className="text-sm font-semibold leading-tight">Info Mesin</p>
+                        <p className="text-[10px] text-muted-foreground">Detail Aset</p>
                     </div>
                 </div>
             </div>

@@ -24,14 +24,16 @@ export async function PUT(req: NextRequest, { params }: Params) {
     try { body = await req.json(); } catch {
         return NextResponse.json({ error: "Body tidak valid." }, { status: 400 });
     }
-    const { code, name, location, specs, imageUrl, status } = body;
-    if (!code?.trim()) return NextResponse.json({ error: "Kode wajib diisi." }, { status: 400 });
-    if (!name?.trim()) return NextResponse.json({ error: "Nama wajib diisi." }, { status: 400 });
-    if (!location?.trim()) return NextResponse.json({ error: "Lokasi wajib diisi." }, { status: 400 });
+
+    const { code, name, location, description, specs, imageUrl, status, preventiveDone } = body;
+
+    if (!code?.trim()) return NextResponse.json({ error: "Kode wajib." }, { status: 400 });
+    if (!name?.trim()) return NextResponse.json({ error: "Nama wajib." }, { status: 400 });
+    if (!location?.trim()) return NextResponse.json({ error: "Lokasi wajib." }, { status: 400 });
 
     const dupSnap = await firestore.collection("machines").where("code", "==", code.trim()).limit(5).get();
     if (dupSnap.docs.some((d) => d.id !== id))
-        return NextResponse.json({ error: `Kode "${code.trim()}" sudah dipakai.` }, { status: 409 });
+        return NextResponse.json({ error: "Kode sudah dipakai." }, { status: 409 });
 
     const cleanSpecs: MachineSpec[] = Array.isArray(specs)
         ? specs.filter((s) => s?.key?.trim()).map((s) => ({ key: s.key.trim(), value: (s.value ?? "").trim() }))
@@ -40,9 +42,12 @@ export async function PUT(req: NextRequest, { params }: Params) {
 
     await docRef.update({
         code: code.trim(), name: name.trim(), location: location.trim(),
+        description: (description ?? "").trim(),
         specs: cleanSpecs, imageUrl: (imageUrl ?? "").trim(),
-        status: finalStatus, updatedAt: Timestamp.now(),
+        status: finalStatus, preventiveDone: Boolean(preventiveDone),
+        updatedAt: Timestamp.now(),
     });
+
     const doc = await docRef.get();
     return NextResponse.json({ machine: serializeMachine(doc) });
 }

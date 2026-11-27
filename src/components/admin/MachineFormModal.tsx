@@ -1,24 +1,16 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
-import { Plus, Trash2, Loader2, Upload, X } from "lucide-react";
+import { Plus, Trash2, Loader2, Upload, X, ImageIcon, ShieldCheck } from "lucide-react";
 import {
-    Dialog,
-    DialogContent,
-    DialogDescription,
-    DialogFooter,
-    DialogHeader,
-    DialogTitle,
+    Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
+    Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
@@ -58,10 +50,7 @@ async function compressImage(file: File, maxSize = 800, quality = 0.7): Promise<
                 canvas.width = width;
                 canvas.height = height;
                 const ctx = canvas.getContext("2d");
-                if (!ctx) {
-                    reject(new Error("Canvas tidak didukung."));
-                    return;
-                }
+                if (!ctx) { reject(new Error("Canvas tidak didukung.")); return; }
                 ctx.drawImage(img, 0, 0, width, height);
                 resolve(canvas.toDataURL("image/jpeg", quality));
             };
@@ -73,12 +62,7 @@ async function compressImage(file: File, maxSize = 800, quality = 0.7): Promise<
     });
 }
 
-export function MachineFormModal({
-    open,
-    onOpenChange,
-    editingMachine,
-    onSaved,
-}: MachineFormModalProps) {
+export function MachineFormModal({ open, onOpenChange, editingMachine, onSaved }: MachineFormModalProps) {
     const { toast } = useToast();
     const isEdit = Boolean(editingMachine);
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -88,7 +72,9 @@ export function MachineFormModal({
     const [name, setName] = useState("");
     const [location, setLocation] = useState("");
     const [imageData, setImageData] = useState("");
+    const [description, setDescription] = useState("");
     const [status, setStatus] = useState<MachineStatus>("Normal");
+    const [preventiveDone, setPreventiveDone] = useState(false);
     const [specs, setSpecs] = useState<MachineSpec[]>([{ key: "", value: "" }]);
     const [uploading, setUploading] = useState(false);
 
@@ -98,19 +84,14 @@ export function MachineFormModal({
             setCode(editingMachine.code);
             setName(editingMachine.name);
             setLocation(editingMachine.location);
+            setDescription(editingMachine.description);
             setImageData(editingMachine.imageUrl);
             setStatus(editingMachine.status);
-            setSpecs(
-                editingMachine.specs.length > 0
-                    ? editingMachine.specs
-                    : [{ key: "", value: "" }],
-            );
+            setPreventiveDone(editingMachine.preventiveDone);
+            setSpecs(editingMachine.specs.length > 0 ? editingMachine.specs : [{ key: "", value: "" }]);
         } else {
-            setCode("");
-            setName("");
-            setLocation("");
-            setImageData("");
-            setStatus("Normal");
+            setCode(""); setName(""); setLocation(""); setDescription("");
+            setImageData(""); setStatus("Normal"); setPreventiveDone(false);
             setSpecs([{ key: "", value: "" }]);
         }
     }, [open, editingMachine]);
@@ -118,40 +99,21 @@ export function MachineFormModal({
     const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
-
         if (!file.type.startsWith("image/")) {
-            toast({
-                title: "File tidak valid",
-                description: "Pilih file gambar (JPG, PNG, WebP).",
-                variant: "destructive",
-            });
+            toast({ title: "File tidak valid", description: "Pilih file gambar.", variant: "destructive" });
             return;
         }
-
         if (file.size > 10 * 1024 * 1024) {
-            toast({
-                title: "File terlalu besar",
-                description: "Ukuran maksimal 10MB.",
-                variant: "destructive",
-            });
+            toast({ title: "File terlalu besar", description: "Maks 10MB.", variant: "destructive" });
             return;
         }
-
         setUploading(true);
         try {
             const compressed = await compressImage(file);
             setImageData(compressed);
-            toast({
-                title: "Foto terunggah",
-                description: "Gambar dikompres dan siap disimpan.",
-            });
+            toast({ title: "Foto terunggah", description: "Gambar dikompres dan siap." });
         } catch (err) {
-            toast({
-                title: "Gagal upload",
-                description:
-                    err instanceof Error ? err.message : "Terjadi kesalahan.",
-                variant: "destructive",
-            });
+            toast({ title: "Gagal upload", description: err instanceof Error ? err.message : "Error.", variant: "destructive" });
         } finally {
             setUploading(false);
         }
@@ -159,63 +121,33 @@ export function MachineFormModal({
 
     const handleRemoveImage = () => {
         setImageData("");
-        if (fileInputRef.current) {
-            fileInputRef.current.value = "";
-        }
+        if (fileInputRef.current) fileInputRef.current.value = "";
     };
 
     const addSpec = () => setSpecs((prev) => [...prev, { key: "", value: "" }]);
-    const removeSpec = (index: number) =>
-        setSpecs((prev) => prev.filter((_, i) => i !== index));
+    const removeSpec = (index: number) => setSpecs((prev) => prev.filter((_, i) => i !== index));
     const updateSpec = (index: number, field: keyof MachineSpec, value: string) =>
-        setSpecs((prev) =>
-            prev.map((s, i) => (i === index ? { ...s, [field]: value } : s)),
-        );
+        setSpecs((prev) => prev.map((s, i) => (i === index ? { ...s, [field]: value } : s)));
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-
         if (!code.trim() || !name.trim() || !location.trim()) {
-            toast({
-                title: "Validasi gagal",
-                description: "Kode, Nama, dan Lokasi mesin wajib diisi.",
-                variant: "destructive",
-            });
+            toast({ title: "Validasi gagal", description: "Kode, Nama, dan Lokasi wajib.", variant: "destructive" });
             return;
         }
-
         const input: MachineInput = {
-            code: code.trim(),
-            name: name.trim(),
-            location: location.trim(),
-            imageUrl: imageData,
-            status,
-            specs: specs
-                .filter((s) => s.key.trim())
-                .map((s) => ({ key: s.key.trim(), value: s.value.trim() })),
+            code: code.trim(), name: name.trim(), location: location.trim(),
+            description: description.trim(), imageUrl: imageData, status, preventiveDone,
+            specs: specs.filter((s) => s.key.trim()).map((s) => ({ key: s.key.trim(), value: s.value.trim() })),
         };
-
         setSubmitting(true);
         try {
-            const saved = isEdit && editingMachine
-                ? await updateMachine(editingMachine.id, input)
-                : await createMachine(input);
-
-            toast({
-                title: isEdit ? "Mesin diperbarui" : "Mesin ditambahkan",
-                description: isEdit
-                    ? "Perubahan tersimpan. QR Code akan menampilkan info terbaru saat di-scan."
-                    : `Mesin "${saved.name}" berhasil didaftarkan.`,
-            });
+            const saved = isEdit && editingMachine ? await updateMachine(editingMachine.id, input) : await createMachine(input);
+            toast({ title: isEdit ? "Mesin diperbarui" : "Mesin ditambahkan", description: isEdit ? "Perubahan tersimpan." : `Mesin "${saved.name}" didaftarkan.` });
             onSaved(saved);
             onOpenChange(false);
         } catch (err) {
-            toast({
-                title: "Gagal menyimpan",
-                description:
-                    err instanceof Error ? err.message : "Terjadi kesalahan tak terduga.",
-                variant: "destructive",
-            });
+            toast({ title: "Gagal menyimpan", description: err instanceof Error ? err.message : "Error.", variant: "destructive" });
         } finally {
             setSubmitting(false);
         }
@@ -225,129 +157,81 @@ export function MachineFormModal({
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-2xl">
                 <DialogHeader>
-                    <DialogTitle>
-                        {isEdit ? "Edit Mesin" : "Tambah Mesin Baru"}
-                    </DialogTitle>
-                    <DialogDescription>
-                        {isEdit
-                            ? "Perbarui data mesin. Data baru akan otomatis tampil saat QR di-scan (Dynamic QR)."
-                            : "Lengkapi data mesin untuk didaftarkan ke sistem."}
-                    </DialogDescription>
+                    <DialogTitle>{isEdit ? "Edit Mesin" : "Tambah Mesin Baru"}</DialogTitle>
+                    <DialogDescription>{isEdit ? "Perbarui data mesin." : "Lengkapi data mesin."}</DialogDescription>
                 </DialogHeader>
-
                 <form onSubmit={handleSubmit} className="space-y-5">
-                    {/* Identitas mesin */}
                     <div className="grid gap-4 sm:grid-cols-2">
                         <div className="space-y-2">
-                            <Label htmlFor="code">
-                                Kode / Nomor Aset <span className="text-red-500">*</span>
-                            </Label>
-                            <Input
-                                id="code"
-                                placeholder="cth: MCH-PRD-001"
-                                value={code}
-                                onChange={(e) => setCode(e.target.value)}
-                                required
-                            />
+                            <Label htmlFor="code">Kode / Nomor Aset <span className="text-red-500">*</span></Label>
+                            <Input id="code" placeholder="cth: MCH-PRD-001" value={code} onChange={(e) => setCode(e.target.value)} required />
                         </div>
                         <div className="space-y-2">
-                            <Label htmlFor="name">
-                                Nama Mesin <span className="text-red-500">*</span>
-                            </Label>
-                            <Input
-                                id="name"
-                                placeholder="cth: Mesin CNC Milling VMC-500"
-                                value={name}
-                                onChange={(e) => setName(e.target.value)}
-                                required
-                            />
+                            <Label htmlFor="name">Nama Mesin <span className="text-red-500">*</span></Label>
+                            <Input id="name" placeholder="cth: Mesin CNC Milling VMC-500" value={name} onChange={(e) => setName(e.target.value)} required />
                         </div>
                     </div>
-
                     <div className="grid gap-4 sm:grid-cols-2">
                         <div className="space-y-2">
-                            <Label htmlFor="location">
-                                Lokasi Penempatan <span className="text-red-500">*</span>
-                            </Label>
-                            <Input
-                                id="location"
-                                placeholder="cth: Ruang Produksi A"
-                                value={location}
-                                onChange={(e) => setLocation(e.target.value)}
-                                required
-                            />
+                            <Label htmlFor="location">Lokasi Penempatan <span className="text-red-500">*</span></Label>
+                            <Input id="location" placeholder="cth: Ruang Produksi A" value={location} onChange={(e) => setLocation(e.target.value)} required />
                         </div>
                         <div className="space-y-2">
                             <Label htmlFor="status">Status Mesin</Label>
-                            <Select
-                                value={status}
-                                onValueChange={(v) => setStatus(v as MachineStatus)}
-                            >
-                                <SelectTrigger id="status">
-                                    <SelectValue />
-                                </SelectTrigger>
+                            <Select value={status} onValueChange={(v) => setStatus(v as MachineStatus)}>
+                                <SelectTrigger id="status"><SelectValue /></SelectTrigger>
                                 <SelectContent>
-                                    {STATUS_OPTIONS.map((opt) => (
-                                        <SelectItem key={opt.value} value={opt.value}>
-                                            {opt.label}
-                                        </SelectItem>
-                                    ))}
+                                    {STATUS_OPTIONS.map((opt) => (<SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>))}
                                 </SelectContent>
                             </Select>
                         </div>
                     </div>
 
-                    {/* Upload foto — INI BAGIAN YANG BERUBAH */}
+                    {/* Deskripsi mesin */}
+                    <div className="space-y-2">
+                        <Label htmlFor="description">Deskripsi Mesin</Label>
+                        <Textarea id="description" placeholder="Deskripsikan mesin ini (fungsi, kondisi, catatan khusus, dll)..." value={description} onChange={(e) => setDescription(e.target.value)} rows={3} />
+                    </div>
+
+                    {/* Preventive maintenance toggle */}
+                    <div className="flex items-center justify-between rounded-lg border p-3">
+                        <div className="flex items-center gap-2">
+                            <ShieldCheck className={`h-5 w-5 ${preventiveDone ? "text-emerald-500" : "text-muted-foreground"}`} />
+                            <div>
+                                <Label className="cursor-pointer">Preventive Maintenance</Label>
+                                <p className="text-xs text-muted-foreground">{preventiveDone ? "Sudah dilakukan preventive" : "Belum dilakukan preventive"}</p>
+                            </div>
+                        </div>
+                        <button type="button" onClick={() => setPreventiveDone(!preventiveDone)} className={`relative h-6 w-11 rounded-full transition-colors ${preventiveDone ? "bg-emerald-500" : "bg-muted"}`}>
+                            <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white transition-transform ${preventiveDone ? "translate-x-5" : "translate-x-0.5"}`} />
+                        </button>
+                    </div>
+
+                    {/* Upload foto */}
                     <div className="space-y-2">
                         <Label>Foto Mesin</Label>
-                        <input
-                            ref={fileInputRef}
-                            type="file"
-                            accept="image/*"
-                            onChange={handleFileSelect}
-                            className="hidden"
-                            id="photo-upload"
-                        />
+                        <input ref={fileInputRef} type="file" accept="image/*" onChange={handleFileSelect} className="hidden" id="photo-upload" />
                         {imageData ? (
                             <div className="relative overflow-hidden rounded-lg border">
-                                <img
-                                    src={imageData}
-                                    alt="Pratinjau"
-                                    className="h-48 w-full object-cover"
-                                />
-                                <button
-                                    type="button"
-                                    onClick={handleRemoveImage}
-                                    className="absolute right-2 top-2 rounded-full bg-black/60 p-1.5 text-white hover:bg-black/80"
-                                >
+                                <img src={imageData} alt="Pratinjau" className="h-48 w-full object-cover" />
+                                <button type="button" onClick={handleRemoveImage} className="absolute right-2 top-2 rounded-full bg-black/60 p-1.5 text-white hover:bg-black/80">
                                     <X className="h-4 w-4" />
                                 </button>
                             </div>
                         ) : (
-                            <label
-                                htmlFor="photo-upload"
-                                className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border border-dashed py-8 hover:border-amber-400 hover:bg-muted/50"
-                            >
-                                {uploading ? (
-                                    <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-                                ) : (
+                            <label htmlFor="photo-upload" className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border border-dashed py-8 hover:border-amber-400 hover:bg-muted/50">
+                                {uploading ? (<Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />) : (
                                     <>
                                         <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted">
                                             <Upload className="h-5 w-5 text-muted-foreground" />
                                         </div>
                                         <p className="text-sm font-medium">Klik untuk upload foto</p>
-                                        <p className="text-xs text-muted-foreground">
-                                            JPG, PNG, WebP — maks 10MB
-                                        </p>
+                                        <p className="text-xs text-muted-foreground">JPG, PNG, WebP — maks 10MB</p>
                                     </>
                                 )}
                             </label>
                         )}
-                        {!imageData && (
-                            <p className="text-xs text-muted-foreground">
-                                Foto akan tampil di kartu QR & halaman inspeksi.
-                            </p>
-                        )}
+                        {!imageData && (<p className="text-xs text-muted-foreground">Foto akan tampil di kartu QR & halaman inspeksi.</p>)}
                     </div>
 
                     <Separator />
@@ -357,43 +241,16 @@ export function MachineFormModal({
                         <div className="flex items-center justify-between">
                             <div>
                                 <Label>Spesifikasi Mesin</Label>
-                                <p className="text-xs text-muted-foreground">
-                                    Tambahkan atribut teknis (Daya, Kapasitas, Tahun, dll).
-                                </p>
+                                <p className="text-xs text-muted-foreground">Tambahkan atribut teknis (Daya, Kapasitas, Tahun, dll).</p>
                             </div>
-                            <Button
-                                type="button"
-                                variant="outline"
-                                size="sm"
-                                onClick={addSpec}
-                            >
-                                <Plus className="mr-1 h-4 w-4" /> Tambah
-                            </Button>
+                            <Button type="button" variant="outline" size="sm" onClick={addSpec}><Plus className="mr-1 h-4 w-4" /> Tambah</Button>
                         </div>
-
                         <div className="space-y-2">
                             {specs.map((spec, index) => (
                                 <div key={index} className="flex gap-2">
-                                    <Input
-                                        placeholder="Atribut (cth: Daya)"
-                                        value={spec.key}
-                                        onChange={(e) => updateSpec(index, "key", e.target.value)}
-                                        className="flex-1"
-                                    />
-                                    <Input
-                                        placeholder="Nilai (cth: 15 kW)"
-                                        value={spec.value}
-                                        onChange={(e) => updateSpec(index, "value", e.target.value)}
-                                        className="flex-1"
-                                    />
-                                    <Button
-                                        type="button"
-                                        variant="ghost"
-                                        size="icon"
-                                        onClick={() => removeSpec(index)}
-                                        disabled={specs.length === 1}
-                                        aria-label="Hapus spesifikasi"
-                                    >
+                                    <Input placeholder="Atribut (cth: Daya)" value={spec.key} onChange={(e) => updateSpec(index, "key", e.target.value)} className="flex-1" />
+                                    <Input placeholder="Nilai (cth: 15 kW)" value={spec.value} onChange={(e) => updateSpec(index, "value", e.target.value)} className="flex-1" />
+                                    <Button type="button" variant="ghost" size="icon" onClick={() => removeSpec(index)} disabled={specs.length === 1} aria-label="Hapus spesifikasi">
                                         <Trash2 className="h-4 w-4 text-red-500" />
                                     </Button>
                                 </div>
@@ -402,14 +259,7 @@ export function MachineFormModal({
                     </div>
 
                     <DialogFooter>
-                        <Button
-                            type="button"
-                            variant="outline"
-                            onClick={() => onOpenChange(false)}
-                            disabled={submitting}
-                        >
-                            Batal
-                        </Button>
+                        <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={submitting}>Batal</Button>
                         <Button type="submit" disabled={submitting}>
                             {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                             {isEdit ? "Simpan Perubahan" : "Daftarkan Mesin"}
