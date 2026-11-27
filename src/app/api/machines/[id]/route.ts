@@ -4,7 +4,7 @@ import { firestore } from "@/lib/firebase";
 import { serializeMachine } from "@/lib/serialize";
 import type { MachineInput, MachineStatus, MachineSpec } from "@/lib/types";
 
-const VALID_STATUS: Set<MachineStatus> = new Set(["Normal", "Perbaikan", "Rusak"]);
+const VALID_STATUS: MachineStatus[] = ["Normal", "Perbaikan", "Rusak"];
 type Params = { params: Promise<{ id: string }> };
 
 export async function GET(_req: NextRequest, { params }: Params) {
@@ -25,7 +25,7 @@ export async function PUT(req: NextRequest, { params }: Params) {
         return NextResponse.json({ error: "Body tidak valid." }, { status: 400 });
     }
 
-    const { code, name, location, description, specs, imageUrl, status, preventiveDone } = body;
+    const { code, name, location, description, specs, imageUrl, status, preventiveDone, preventiveTechnician, preventiveDate, preventiveNotes } = body;
 
     if (!code?.trim()) return NextResponse.json({ error: "Kode wajib." }, { status: 400 });
     if (!name?.trim()) return NextResponse.json({ error: "Nama wajib." }, { status: 400 });
@@ -38,13 +38,17 @@ export async function PUT(req: NextRequest, { params }: Params) {
     const cleanSpecs: MachineSpec[] = Array.isArray(specs)
         ? specs.filter((s) => s?.key?.trim()).map((s) => ({ key: s.key.trim(), value: (s.value ?? "").trim() }))
         : [];
-    const finalStatus = VALID_STATUS.has(status) ? status : "Normal";
+    const finalStatus = VALID_STATUS.includes(status) ? status : "Normal";
 
     await docRef.update({
         code: code.trim(), name: name.trim(), location: location.trim(),
         description: (description ?? "").trim(),
         specs: cleanSpecs, imageUrl: (imageUrl ?? "").trim(),
-        status: finalStatus, preventiveDone: Boolean(preventiveDone),
+        status: finalStatus,
+        preventiveDone: Boolean(preventiveDone),
+        preventiveTechnician: (preventiveTechnician ?? "").trim(),
+        preventiveDate: preventiveDate ? Timestamp.fromDate(new Date(preventiveDate)) : Timestamp.now(),
+        preventiveNotes: (preventiveNotes ?? "").trim(),
         updatedAt: Timestamp.now(),
     });
 

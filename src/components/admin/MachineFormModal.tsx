@@ -38,17 +38,11 @@ async function compressImage(file: File, maxSize = 800, quality = 0.7): Promise<
             img.onload = () => {
                 let { width, height } = img;
                 if (width > maxSize || height > maxSize) {
-                    if (width > height) {
-                        height = Math.round((height * maxSize) / width);
-                        width = maxSize;
-                    } else {
-                        width = Math.round((width * maxSize) / height);
-                        height = maxSize;
-                    }
+                    if (width > height) { height = Math.round((height * maxSize) / width); width = maxSize; }
+                    else { width = Math.round((width * maxSize) / height); height = maxSize; }
                 }
                 const canvas = document.createElement("canvas");
-                canvas.width = width;
-                canvas.height = height;
+                canvas.width = width; canvas.height = height;
                 const ctx = canvas.getContext("2d");
                 if (!ctx) { reject(new Error("Canvas tidak didukung.")); return; }
                 ctx.drawImage(img, 0, 0, width, height);
@@ -75,23 +69,26 @@ export function MachineFormModal({ open, onOpenChange, editingMachine, onSaved }
     const [description, setDescription] = useState("");
     const [status, setStatus] = useState<MachineStatus>("Normal");
     const [preventiveDone, setPreventiveDone] = useState(false);
+    const [preventiveTechnician, setPreventiveTechnician] = useState("");
+    const [preventiveDate, setPreventiveDate] = useState("");
+    const [preventiveNotes, setPreventiveNotes] = useState("");
     const [specs, setSpecs] = useState<MachineSpec[]>([{ key: "", value: "" }]);
     const [uploading, setUploading] = useState(false);
 
     useEffect(() => {
         if (!open) return;
         if (editingMachine) {
-            setCode(editingMachine.code);
-            setName(editingMachine.name);
-            setLocation(editingMachine.location);
-            setDescription(editingMachine.description);
-            setImageData(editingMachine.imageUrl);
-            setStatus(editingMachine.status);
-            setPreventiveDone(editingMachine.preventiveDone);
+            setCode(editingMachine.code); setName(editingMachine.name); setLocation(editingMachine.location);
+            setDescription(editingMachine.description); setImageData(editingMachine.imageUrl);
+            setStatus(editingMachine.status); setPreventiveDone(editingMachine.preventiveDone);
+            setPreventiveTechnician(editingMachine.preventiveTechnician);
+            setPreventiveDate(editingMachine.preventiveDate ? editingMachine.preventiveDate.split("T")[0] : "");
+            setPreventiveNotes(editingMachine.preventiveNotes);
             setSpecs(editingMachine.specs.length > 0 ? editingMachine.specs : [{ key: "", value: "" }]);
         } else {
-            setCode(""); setName(""); setLocation(""); setDescription("");
-            setImageData(""); setStatus("Normal"); setPreventiveDone(false);
+            setCode(""); setName(""); setLocation(""); setDescription(""); setImageData("");
+            setStatus("Normal"); setPreventiveDone(false);
+            setPreventiveTechnician(""); setPreventiveDate(""); setPreventiveNotes("");
             setSpecs([{ key: "", value: "" }]);
         }
     }, [open, editingMachine]);
@@ -100,12 +97,10 @@ export function MachineFormModal({ open, onOpenChange, editingMachine, onSaved }
         const file = e.target.files?.[0];
         if (!file) return;
         if (!file.type.startsWith("image/")) {
-            toast({ title: "File tidak valid", description: "Pilih file gambar.", variant: "destructive" });
-            return;
+            toast({ title: "File tidak valid", description: "Pilih file gambar.", variant: "destructive" }); return;
         }
         if (file.size > 10 * 1024 * 1024) {
-            toast({ title: "File terlalu besar", description: "Maks 10MB.", variant: "destructive" });
-            return;
+            toast({ title: "File terlalu besar", description: "Maks 10MB.", variant: "destructive" }); return;
         }
         setUploading(true);
         try {
@@ -114,16 +109,10 @@ export function MachineFormModal({ open, onOpenChange, editingMachine, onSaved }
             toast({ title: "Foto terunggah", description: "Gambar dikompres dan siap." });
         } catch (err) {
             toast({ title: "Gagal upload", description: err instanceof Error ? err.message : "Error.", variant: "destructive" });
-        } finally {
-            setUploading(false);
-        }
+        } finally { setUploading(false); }
     };
 
-    const handleRemoveImage = () => {
-        setImageData("");
-        if (fileInputRef.current) fileInputRef.current.value = "";
-    };
-
+    const handleRemoveImage = () => { setImageData(""); if (fileInputRef.current) fileInputRef.current.value = ""; };
     const addSpec = () => setSpecs((prev) => [...prev, { key: "", value: "" }]);
     const removeSpec = (index: number) => setSpecs((prev) => prev.filter((_, i) => i !== index));
     const updateSpec = (index: number, field: keyof MachineSpec, value: string) =>
@@ -132,25 +121,23 @@ export function MachineFormModal({ open, onOpenChange, editingMachine, onSaved }
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!code.trim() || !name.trim() || !location.trim()) {
-            toast({ title: "Validasi gagal", description: "Kode, Nama, dan Lokasi wajib.", variant: "destructive" });
-            return;
+            toast({ title: "Validasi gagal", description: "Kode, Nama, dan Lokasi wajib.", variant: "destructive" }); return;
         }
         const input: MachineInput = {
             code: code.trim(), name: name.trim(), location: location.trim(),
             description: description.trim(), imageUrl: imageData, status, preventiveDone,
+            preventiveTechnician: preventiveTechnician.trim(), preventiveDate,
+            preventiveNotes: preventiveNotes.trim(),
             specs: specs.filter((s) => s.key.trim()).map((s) => ({ key: s.key.trim(), value: s.value.trim() })),
         };
         setSubmitting(true);
         try {
             const saved = isEdit && editingMachine ? await updateMachine(editingMachine.id, input) : await createMachine(input);
             toast({ title: isEdit ? "Mesin diperbarui" : "Mesin ditambahkan", description: isEdit ? "Perubahan tersimpan." : `Mesin "${saved.name}" didaftarkan.` });
-            onSaved(saved);
-            onOpenChange(false);
+            onSaved(saved); onOpenChange(false);
         } catch (err) {
             toast({ title: "Gagal menyimpan", description: err instanceof Error ? err.message : "Error.", variant: "destructive" });
-        } finally {
-            setSubmitting(false);
-        }
+        } finally { setSubmitting(false); }
     };
 
     return (
@@ -187,13 +174,11 @@ export function MachineFormModal({ open, onOpenChange, editingMachine, onSaved }
                         </div>
                     </div>
 
-                    {/* Deskripsi mesin */}
                     <div className="space-y-2">
                         <Label htmlFor="description">Deskripsi Mesin</Label>
-                        <Textarea id="description" placeholder="Deskripsikan mesin ini (fungsi, kondisi, catatan khusus, dll)..." value={description} onChange={(e) => setDescription(e.target.value)} rows={3} />
+                        <Textarea id="description" placeholder="Deskripsikan mesin ini..." value={description} onChange={(e) => setDescription(e.target.value)} rows={3} />
                     </div>
 
-                    {/* Preventive maintenance toggle */}
                     <div className="flex items-center justify-between rounded-lg border p-3">
                         <div className="flex items-center gap-2">
                             <ShieldCheck className={`h-5 w-5 ${preventiveDone ? "text-emerald-500" : "text-muted-foreground"}`} />
@@ -207,7 +192,25 @@ export function MachineFormModal({ open, onOpenChange, editingMachine, onSaved }
                         </button>
                     </div>
 
-                    {/* Upload foto */}
+                    {preventiveDone && (
+                        <div className="space-y-3 rounded-lg border border-emerald-200 bg-emerald-50/50 p-3 dark:border-emerald-900/40 dark:bg-emerald-950/10">
+                            <div className="grid gap-4 sm:grid-cols-2">
+                                <div className="space-y-1.5">
+                                    <Label htmlFor="prev-tech">Nama Teknisi</Label>
+                                    <Input id="prev-tech" placeholder="cth: Didi Sunardi" value={preventiveTechnician} onChange={(e) => setPreventiveTechnician(e.target.value)} />
+                                </div>
+                                <div className="space-y-1.5">
+                                    <Label htmlFor="prev-date">Tanggal Preventive</Label>
+                                    <Input id="prev-date" type="date" value={preventiveDate} onChange={(e) => setPreventiveDate(e.target.value)} />
+                                </div>
+                            </div>
+                            <div className="space-y-1.5">
+                                <Label htmlFor="prev-notes">Catatan Preventive</Label>
+                                <Textarea id="prev-notes" placeholder="Catatan hasil preventive..." value={preventiveNotes} onChange={(e) => setPreventiveNotes(e.target.value)} rows={2} />
+                            </div>
+                        </div>
+                    )}
+
                     <div className="space-y-2">
                         <Label>Foto Mesin</Label>
                         <input ref={fileInputRef} type="file" accept="image/*" onChange={handleFileSelect} className="hidden" id="photo-upload" />
@@ -222,9 +225,7 @@ export function MachineFormModal({ open, onOpenChange, editingMachine, onSaved }
                             <label htmlFor="photo-upload" className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border border-dashed py-8 hover:border-amber-400 hover:bg-muted/50">
                                 {uploading ? (<Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />) : (
                                     <>
-                                        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted">
-                                            <Upload className="h-5 w-5 text-muted-foreground" />
-                                        </div>
+                                        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted"><Upload className="h-5 w-5 text-muted-foreground" /></div>
                                         <p className="text-sm font-medium">Klik untuk upload foto</p>
                                         <p className="text-xs text-muted-foreground">JPG, PNG, WebP — maks 10MB</p>
                                     </>
@@ -236,7 +237,6 @@ export function MachineFormModal({ open, onOpenChange, editingMachine, onSaved }
 
                     <Separator />
 
-                    {/* Spesifikasi dinamis */}
                     <div className="space-y-3">
                         <div className="flex items-center justify-between">
                             <div>

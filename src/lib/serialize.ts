@@ -1,13 +1,8 @@
 import type {
-    Machine,
-    InspectionLog,
-    MachineSpec,
-    ChecklistResults,
-    ChecklistItem,
-    ChecklistSnapshotItem,
+    Machine, InspectionLog, MachineSpec,
+    ChecklistResults, ChecklistItem, ChecklistSnapshotItem,
 } from "@/lib/types";
-import type { Timestamp } from "firebase-admin/firestore";
-import type { DocumentSnapshot } from "firebase-admin/firestore";
+import type { Timestamp, DocumentSnapshot } from "firebase-admin/firestore";
 
 function toISO(value: unknown): string {
     if (!value) return new Date().toISOString();
@@ -28,24 +23,23 @@ interface MachineDocData {
     imageUrl?: string;
     status?: string;
     preventiveDone?: boolean;
+    preventiveTechnician?: string;
+    preventiveDate?: unknown;
+    preventiveNotes?: string;
     createdAt?: unknown;
     updatedAt?: unknown;
 }
 
 export function serializeMachine(doc: DocumentSnapshot): Machine {
     const data = doc.data() as MachineDocData | undefined;
-
     let specs: MachineSpec[] = [];
     if (Array.isArray(data?.specs)) {
         specs = (data!.specs as unknown[])
-            .filter(
-                (s) =>
-                    s && typeof s === "object" &&
-                    typeof (s as MachineSpec).key === "string" &&
-                    typeof (s as MachineSpec).value === "string",
+            .filter((s) => s && typeof s === "object" &&
+                typeof (s as MachineSpec).key === "string" &&
+                typeof (s as MachineSpec).value === "string",
             ) as MachineSpec[];
     }
-
     return {
         id: doc.id,
         code: data?.code ?? "",
@@ -56,6 +50,9 @@ export function serializeMachine(doc: DocumentSnapshot): Machine {
         imageUrl: data?.imageUrl ?? "",
         status: (data?.status as Machine["status"]) ?? "Normal",
         preventiveDone: data?.preventiveDone ?? false,
+        preventiveTechnician: data?.preventiveTechnician ?? "",
+        preventiveDate: toISO(data?.preventiveDate),
+        preventiveNotes: data?.preventiveNotes ?? "",
         createdAt: toISO(data?.createdAt),
         updatedAt: toISO(data?.updatedAt),
     };
@@ -73,23 +70,18 @@ interface InspectionDocData {
 
 export function serializeInspection(doc: DocumentSnapshot): InspectionLog {
     const data = doc.data() as InspectionDocData | undefined;
-
     let checklistResults: ChecklistResults = {};
     if (data?.checklistResults && typeof data.checklistResults === "object" && !Array.isArray(data.checklistResults)) {
         checklistResults = data.checklistResults as ChecklistResults;
     }
-
     let checklistSnapshot: ChecklistSnapshotItem[] = [];
     if (Array.isArray(data?.checklistSnapshot)) {
         checklistSnapshot = (data!.checklistSnapshot as unknown[])
-            .filter(
-                (s) =>
-                    s && typeof s === "object" &&
-                    typeof (s as ChecklistSnapshotItem).key === "string" &&
-                    typeof (s as ChecklistSnapshotItem).label === "string",
+            .filter((s) => s && typeof s === "object" &&
+                typeof (s as ChecklistSnapshotItem).key === "string" &&
+                typeof (s as ChecklistSnapshotItem).label === "string",
             ) as ChecklistSnapshotItem[];
     }
-
     return {
         id: doc.id,
         machineId: data?.machineId ?? "",

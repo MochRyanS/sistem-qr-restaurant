@@ -3,12 +3,13 @@
 import { useCallback, useEffect, useState } from "react";
 import {
     ArrowLeft, MapPin, Loader2, ImageOff, AlertCircle,
-    ShieldCheck, ShieldX, FileText, ClipboardCheck,
+    ShieldCheck, ShieldX, FileText, ClipboardCheck, User, Calendar,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { fetchMachine } from "@/lib/api-client";
+import { formatDateID } from "@/lib/serialize";
 import type { Machine } from "@/lib/types";
 
 interface PublicMachineViewProps {
@@ -113,7 +114,7 @@ export function PublicMachineView({ machineId, onBack }: PublicMachineViewProps)
                     </Card>
                 )}
 
-                {/* Status Preventive Maintenance */}
+                {/* Preventive Maintenance */}
                 <Card>
                     <CardContent className="p-4">
                         <div className="mb-2 flex items-center gap-2">
@@ -134,6 +135,39 @@ export function PublicMachineView({ machineId, onBack }: PublicMachineViewProps)
                                 </p>
                             </div>
                         </div>
+
+                        {/* Detail preventive */}
+                        {machine.preventiveDone && (
+                            <div className="mt-3 space-y-2 rounded-lg border p-3">
+                                {machine.preventiveTechnician && (
+                                    <div className="flex items-start gap-2">
+                                        <User className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                                        <div>
+                                            <p className="text-[10px] font-medium uppercase text-muted-foreground">Teknisi</p>
+                                            <p className="text-sm font-medium">{machine.preventiveTechnician}</p>
+                                        </div>
+                                    </div>
+                                )}
+                                {machine.preventiveDate && (
+                                    <div className="flex items-start gap-2">
+                                        <Calendar className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                                        <div>
+                                            <p className="text-[10px] font-medium uppercase text-muted-foreground">Tanggal</p>
+                                            <p className="text-sm font-medium">{formatDateID(machine.preventiveDate)}</p>
+                                        </div>
+                                    </div>
+                                )}
+                                {machine.preventiveNotes && (
+                                    <div className="flex items-start gap-2">
+                                        <FileText className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                                        <div className="min-w-0 flex-1">
+                                            <p className="text-[10px] font-medium uppercase text-muted-foreground">Catatan</p>
+                                            <p className="text-sm leading-relaxed">{machine.preventiveNotes}</p>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        )}
                     </CardContent>
                 </Card>
             </main>

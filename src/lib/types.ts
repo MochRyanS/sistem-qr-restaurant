@@ -1,17 +1,10 @@
-// ============================================================
-// Type Definitions untuk Sistem Manajemen Aset & Inspeksi Mesin
-// ============================================================
-
-/** Status operasional mesin */
 export type MachineStatus = "Normal" | "Perbaikan" | "Rusak";
 
-/** Item spesifikasi mesin dalam format key-value */
 export interface MachineSpec {
     key: string;
     value: string;
 }
 
-/** Entitas Mesin */
 export interface Machine {
     id: string;
     code: string;
@@ -22,11 +15,13 @@ export interface Machine {
     imageUrl: string;
     status: MachineStatus;
     preventiveDone: boolean;
+    preventiveTechnician: string;
+    preventiveDate: string;
+    preventiveNotes: string;
     createdAt: string;
     updatedAt: string;
 }
 
-/** Payload untuk membuat/mengedit mesin */
 export interface MachineInput {
     code: string;
     name: string;
@@ -36,6 +31,9 @@ export interface MachineInput {
     imageUrl: string;
     status: MachineStatus;
     preventiveDone: boolean;
+    preventiveTechnician: string;
+    preventiveDate: string;
+    preventiveNotes: string;
 }
 
 export type ChecklistResult = "Standar" | "Tidak Standar";
