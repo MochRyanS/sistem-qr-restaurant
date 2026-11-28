@@ -8,6 +8,10 @@ import {
     Search,
     MapPin,
     ImageOff,
+    ShieldCheck,
+    ShieldX,
+    User,
+    Calendar,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -31,7 +35,7 @@ import {
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { StatusBadge } from "@/components/shared/StatusBadge";
-import { SetStateAction, useState } from "react";
+import { useState } from "react";
 import type { Machine } from "@/lib/types";
 import { formatDateID } from "@/lib/serialize";
 
@@ -41,6 +45,7 @@ interface MachineListProps {
     onEdit: (machine: Machine) => void;
     onDelete: (machine: Machine) => void;
     onGenerateQR: (machine: Machine) => void;
+    onPreventiveLog: (machine: Machine) => void;
 }
 
 export function MachineList({
@@ -49,6 +54,7 @@ export function MachineList({
     onEdit,
     onDelete,
     onGenerateQR,
+    onPreventiveLog,
 }: MachineListProps) {
     const [search, setSearch] = useState("");
     const [confirmDelete, setConfirmDelete] = useState<Machine | null>(null);
@@ -79,7 +85,7 @@ export function MachineList({
                 <Input
                     placeholder="Cari nama, kode, atau lokasi mesin..."
                     value={search}
-                    onChange={(e: { target: { value: SetStateAction<string>; }; }) => setSearch(e.target.value)}
+                    onChange={(e) => setSearch(e.target.value)}
                     className="pl-9"
                 />
             </div>
@@ -100,16 +106,16 @@ export function MachineList({
             ) : (
                 <>
                     {/* Desktop: tabel */}
-                    <div className="hidden overflow-hidden rounded-lg border md:block">
+                    <div className="hidden overflow-x-auto rounded-lg border md:block">
                         <Table>
                             <TableHeader>
                                 <TableRow className="bg-muted/50">
-                                    <TableHead className="w-15">Foto</TableHead>
+                                    <TableHead className="w-[60px]">Foto</TableHead>
                                     <TableHead>Nama Mesin</TableHead>
                                     <TableHead>Kode Aset</TableHead>
                                     <TableHead>Lokasi</TableHead>
                                     <TableHead>Status</TableHead>
-                                    <TableHead>Preventive</TableHead>
+                                    <TableHead className="min-w-[160px]">Preventive</TableHead>
                                     <TableHead className="whitespace-nowrap">Diperbarui</TableHead>
                                     <TableHead className="text-right">Aksi</TableHead>
                                 </TableRow>
@@ -148,11 +154,53 @@ export function MachineList({
                                         <TableCell>
                                             <StatusBadge status={m.status} />
                                         </TableCell>
+
+                                        {/* Kolom Preventive — status + teknisi + tanggal */}
+                                        <TableCell>
+                                            <div className="space-y-1">
+                                                <div className="flex items-center gap-1.5">
+                                                    {m.preventiveDone ? (
+                                                        <ShieldCheck className="h-4 w-4 text-emerald-500" />
+                                                    ) : (
+                                                        <ShieldX className="h-4 w-4 text-amber-500" />
+                                                    )}
+                                                    <span className={`text-xs font-semibold ${m.preventiveDone ? "text-emerald-600" : "text-amber-600"}`}>
+                                                        {m.preventiveDone ? "Sudah" : "Belum"}
+                                                    </span>
+                                                </div>
+                                                {m.preventiveDone && (
+                                                    <div className="space-y-0.5">
+                                                        {m.preventiveTechnician && (
+                                                            <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                                                                <User className="h-3 w-3" />
+                                                                {m.preventiveTechnician}
+                                                            </div>
+                                                        )}
+                                                        {m.preventiveDate && (
+                                                            <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                                                                <Calendar className="h-3 w-3" />
+                                                                {formatDateID(m.preventiveDate)}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </TableCell>
+
                                         <TableCell className="whitespace-nowrap text-xs text-muted-foreground">
                                             {formatDateID(m.updatedAt)}
                                         </TableCell>
                                         <TableCell className="text-right">
                                             <div className="flex justify-end gap-1">
+                                                <Button
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    onClick={() => onPreventiveLog(m)}
+                                                    title="Log Preventive"
+                                                    className="text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/30"
+                                                >
+                                                    <ShieldCheck className="h-4 w-4" />
+                                                </Button>
                                                 <Button
                                                     variant="ghost"
                                                     size="sm"
@@ -180,14 +228,6 @@ export function MachineList({
                                                 </Button>
                                             </div>
                                         </TableCell>
-                                        <TableCell>
-                                            <span className={`inline-flex items-center gap-1 text-xs font-medium ${m.preventiveDone ? "text-emerald-600" : "text-amber-600"}`}>
-                                                {m.preventiveDone ? "Sudah" : "Belum"}
-                                            </span>
-                                            {m.preventiveDone && m.preventiveTechnician && (
-                                                <span className="block text-[10px] text-muted-foreground">{m.preventiveTechnician}</span>
-                                            )}
-                                        </TableCell>
                                     </TableRow>
                                 ))}
                             </TableBody>
@@ -202,7 +242,7 @@ export function MachineList({
                                 className="rounded-lg border bg-card p-4 shadow-sm"
                             >
                                 <div className="flex items-start gap-3">
-                                    <div className="h-14 w-14 shrink-0 overflow-hidden rounded-md border bg-muted">
+                                    <div className="h-14 w-14 flex-shrink-0 overflow-hidden rounded-md border bg-muted">
                                         {m.imageUrl ? (
                                             <img
                                                 src={m.imageUrl}
@@ -225,12 +265,43 @@ export function MachineList({
                                             <MapPin className="mr-1 inline h-3 w-3" />
                                             {m.location}
                                         </p>
-                                        <div className="mt-2">
+                                        <div className="mt-2 flex flex-wrap items-center gap-1.5">
                                             <StatusBadge status={m.status} />
+                                            <span className={`inline-flex items-center gap-1 text-xs font-medium ${m.preventiveDone ? "text-emerald-600" : "text-amber-600"}`}>
+                                                {m.preventiveDone ? (
+                                                    <ShieldCheck className="h-3 w-3" />
+                                                ) : (
+                                                    <ShieldX className="h-3 w-3" />
+                                                )}
+                                                {m.preventiveDone ? "Sudah Preventive" : "Belum Preventive"}
+                                            </span>
                                         </div>
+                                        {/* Detail preventive di mobile */}
+                                        {m.preventiveDone && (m.preventiveTechnician || m.preventiveDate) && (
+                                            <div className="mt-1.5 space-y-0.5 border-t pt-1.5">
+                                                {m.preventiveTechnician && (
+                                                    <p className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                                                        <User className="h-3 w-3" />{m.preventiveTechnician}
+                                                    </p>
+                                                )}
+                                                {m.preventiveDate && (
+                                                    <p className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                                                        <Calendar className="h-3 w-3" />{formatDateID(m.preventiveDate)}
+                                                    </p>
+                                                )}
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
                                 <div className="mt-3 flex gap-2 border-t pt-3">
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        className="flex-1"
+                                        onClick={() => onPreventiveLog(m)}
+                                    >
+                                        <ShieldCheck className="mr-1 h-4 w-4 text-emerald-600" /> Log
+                                    </Button>
                                     <Button
                                         variant="outline"
                                         size="sm"
@@ -256,12 +327,6 @@ export function MachineList({
                                         <Trash2 className="h-4 w-4" />
                                     </Button>
                                 </div>
-                                <div className="mt-2 flex items-center gap-2">
-                                    <StatusBadge status={m.status} />
-                                    <span className={`text-xs font-medium ${m.preventiveDone ? "text-emerald-600" : "text-amber-600"}`}>
-                                        {m.preventiveDone ? "Preventive: Sudah" : "Preventive: Belum"}
-                                    </span>
-                                </div>
                             </div>
                         ))}
                     </div>
@@ -279,7 +344,7 @@ export function MachineList({
             {/* Dialog konfirmasi hapus */}
             <AlertDialog
                 open={Boolean(confirmDelete)}
-                onOpenChange={(o: any) => !o && setConfirmDelete(null)}
+                onOpenChange={(o) => !o && setConfirmDelete(null)}
             >
                 <AlertDialogContent>
                     <AlertDialogHeader>

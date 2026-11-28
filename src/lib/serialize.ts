@@ -1,6 +1,7 @@
 import type {
     Machine, InspectionLog, MachineSpec,
     ChecklistResults, ChecklistItem, ChecklistSnapshotItem,
+    PreventiveLog,
 } from "@/lib/types";
 import type { Timestamp, DocumentSnapshot } from "firebase-admin/firestore";
 
@@ -125,4 +126,24 @@ export function formatDateID(iso: string): string {
     return new Intl.DateTimeFormat("id-ID", {
         day: "numeric", month: "short", year: "numeric", timeZone: "Asia/Jakarta",
     }).format(new Date(iso));
+}
+
+interface PreventiveDocData {
+    machineId?: string;
+    technicianName?: string;
+    date?: unknown;
+    notes?: string;
+    createdAt?: unknown;
+}
+
+export function serializePreventiveLog(doc: DocumentSnapshot): PreventiveLog {
+    const data = doc.data() as PreventiveDocData | undefined;
+    return {
+        id: doc.id,
+        machineId: data?.machineId ?? "",
+        technicianName: data?.technicianName ?? "",
+        date: toISO(data?.date),
+        notes: data?.notes ?? "",
+        createdAt: toISO(data?.createdAt),
+    };
 }

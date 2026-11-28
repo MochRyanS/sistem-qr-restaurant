@@ -80,6 +80,21 @@ export const CHECKLIST_RESULT_OPTIONS: { value: ChecklistResult; label: string }
     { value: "Tidak Standar", label: "Tidak Standar" },
 ];
 
+export interface PreventiveLog {
+    id: string;
+    machineId: string;
+    technicianName: string;
+    date: string;
+    notes: string;
+    createdAt: string;
+}
+
+export interface PreventiveInput {
+    technicianName: string;
+    date: string;
+    notes: string;
+}
+
 export function slugifyKey(label: string): string {
     return label
         .toLowerCase()

@@ -6,6 +6,8 @@ import type {
     MachineStatus,
     ChecklistItem,
     ChecklistItemInput,
+    PreventiveInput,
+    PreventiveLog,
 } from "@/lib/types";
 
 async function handle<T>(res: Response): Promise<T> {
@@ -135,4 +137,20 @@ export async function updateChecklistItem(
 export async function deleteChecklistItem(id: string): Promise<void> {
     const res = await fetch(`/api/checklist-items/${id}`, { method: "DELETE" });
     await handle<{ success: boolean }>(res);
+}
+
+export async function fetchPreventiveLogs(machineId: string): Promise<PreventiveLog[]> {
+    const res = await fetch(`/api/machines/${machineId}/preventive`, { cache: "no-store" });
+    const data = await handle<{ logs: PreventiveLog[] }>(res);
+    return data.logs;
+}
+
+export async function addPreventiveLog(machineId: string, input: PreventiveInput): Promise<PreventiveLog> {
+    const res = await fetch(`/api/machines/${machineId}/preventive`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(input),
+    });
+    const data = await handle<{ log: PreventiveLog }>(res);
+    return data.log;
 }
